@@ -6,7 +6,7 @@ from frontend.monitor import MonitorPage
 class MainApplication(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Network Configuration Tool")
+        self.setWindowTitle("Network Automation")
         self.setGeometry(100, 100, 1300, 700)
         
         

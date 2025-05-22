@@ -56,7 +56,8 @@ class ConfigPage(QWidget):
 
     def setup_ui(self):
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(30, 30, 30, 30)
+        main_layout.setContentsMargins(50, 50, 50, 50)
+        self.setGeometry(100, 100, 1300, 700)
         main_layout.setSpacing(20)
 
         # Header

@@ -1,13 +1,80 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, 
-    QListWidget, QFrame, QGridLayout, QPushButton, QGroupBox, QMessageBox
+    QListWidget, QFrame, QGridLayout, QPushButton, QGroupBox, 
+    QMessageBox, QInputDialog,QLineEdit
 )
 from PyQt6.QtGui import QFont
-from PyQt6.QtCore import Qt, pyqtSignal
-from backend.monitor import fetch_routers, validate_router_credentials, handle_logout_request
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from backend.monitor import fetch_routers, validate_router_credentials, handle_logout_request, fetch_full_logs, validate_admin
 from frontend.stats_page import StatsWindow
 from frontend.modify import ModifyPage
 from frontend.manage_equipment import EquipmentManager
+from datetime import datetime
+from bson import ObjectId
+
+class LogEntrySection(QGroupBox):
+    def __init__(self, log_data, parent=None):
+        super().__init__(parent)
+        self.log_data = log_data
+        self.setup_ui()
+        
+    def setup_ui(self):
+        self.setStyleSheet("""
+            QGroupBox {
+                background-color: #ffffff;
+                border: 2px solid #74b9ff;
+                border-radius: 8px;
+                margin: 10px;
+                padding: 15px;
+            }
+            QLabel {
+                color: #2d3436;
+                font-size: 14px;
+                margin: 4px 0;
+            }
+        """)
+        
+        layout = QVBoxLayout()
+        
+        # Display ObjectID header
+        obj_id = str(self.log_data.get('_id', ''))
+        id_label = QLabel(f"Document ID: {obj_id}")
+        id_label.setStyleSheet("font-weight: bold; color: #0984e3; font-size: 16px;")
+        layout.addWidget(id_label)
+        
+        # Display all fields
+        for key, value in self.log_data.items():
+            if key == '_id':
+                continue
+                
+            field_layout = QHBoxLayout()
+            
+            key_label = QLabel(f"{key.capitalize()}:")
+            key_label.setStyleSheet("min-width: 120px;")
+            
+            value_label = QLabel(self.format_value(key, value))
+            
+            field_layout.addWidget(key_label)
+            field_layout.addWidget(value_label)
+            layout.addLayout(field_layout)
+        
+        self.setLayout(layout)
+    
+    def format_value(self, key, value):
+        if key == 'timestamp':
+            return value.strftime("%Y-%m-%d %H:%M:%S") if value else "N/A"
+        if key == 'networks':
+            return self.format_networks(value)
+        if isinstance(value, ObjectId):
+            return str(value)
+        if isinstance(value, list):
+            return ", ".join(map(str, value))
+        return str(value)
+    
+    def format_networks(self, networks):
+        if not isinstance(networks, list):
+            return "N/A"
+        return "\n".join([f"{n.get('network', '?')}/{n.get('mask', '?')} (Area {n.get('area', '?')})" for n in networks])
 
 class RouterCard(QGroupBox):
     status_requested = pyqtSignal(dict)
@@ -65,7 +132,9 @@ class MonitorPage(QWidget):
         super().__init__()
         self.stacked_widget = stacked_widget
         self.child_windows = []
+        self.admin_clicks = 0
         self.setup_ui()
+        self.setup_hidden_logs()
         self.setStyleSheet("background-color: #f5f6fa;")
         self.refresh_needed.connect(self.load_routers)
 
@@ -86,6 +155,20 @@ class MonitorPage(QWidget):
         main_layout.addLayout(content_layout)
         self.setLayout(main_layout)
         self.load_routers()
+
+    def setup_hidden_logs(self):
+        """Initialize hidden logs container"""
+        self.log_scroll = QScrollArea()
+        self.log_scroll.setWidgetResizable(True)
+        self.log_scroll.setStyleSheet("border: none; background: transparent;")
+        
+        self.log_container = QWidget()
+        self.log_layout = QVBoxLayout()
+        self.log_container.setLayout(self.log_layout)
+        
+        self.log_scroll.setWidget(self.log_container)
+        self.log_scroll.hide()
+        self.layout().addWidget(self.log_scroll)
 
     def create_navigation_panel(self):
         frame = QFrame()
@@ -136,6 +219,55 @@ class MonitorPage(QWidget):
         scroll_area.setWidget(self.grid_content)
         return scroll_area
 
+    def mousePressEvent(self, event):
+        """Hidden activation: Triple right-click"""
+        if event.button() == Qt.MouseButton.RightButton:
+            self.admin_clicks += 1
+            if self.admin_clicks == 3:
+                self.verify_admin_access()
+            QTimer.singleShot(2000, self.reset_admin_counter)
+
+    def reset_admin_counter(self):
+        self.admin_clicks = 0
+
+    def verify_admin_access(self):
+        """Admin password verification"""
+        password, ok = QInputDialog.getText(
+            self, "Admin Access", 
+            "Enter admin password:", 
+            QLineEdit.EchoMode.Password
+        )
+        
+        if ok and validate_admin(password):
+            self.show_logs_interface()
+        else:
+            QMessageBox.warning(self, "Access Denied", "Incorrect password")
+
+    def show_logs_interface(self):
+        """Display all log entries in individual sections"""
+        try:
+            # Clear previous logs
+            while self.log_layout.count():
+                item = self.log_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+            
+            # Load and display new logs
+            logs = fetch_full_logs()
+            if not logs:
+                QMessageBox.information(self, "Info", "No logs found in database")
+                return
+                
+            for log in logs:
+                log_section = LogEntrySection(log)
+                self.log_layout.addWidget(log_section)
+            
+            self.log_layout.addStretch()
+            self.log_scroll.show()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load logs: {str(e)}")
+
     def load_routers(self):
         self.clear_layout(self.grid_layout)
         routers = fetch_routers()
@@ -153,13 +285,7 @@ class MonitorPage(QWidget):
                 widget.deleteLater()
 
     def show_router_stats(self, router_data):
-        # Extract all required parameters from router_data
-        stats_window = StatsWindow(
-            router_name=router_data['name'],
-            host=router_data['ip'],
-            username=router_data['username'],
-            password=router_data['password']
-        )
+        stats_window = StatsWindow(router_data)
         self.add_child_window(stats_window)
         stats_window.show()
 
