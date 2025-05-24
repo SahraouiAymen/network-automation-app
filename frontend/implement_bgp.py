@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushBut
                             QComboBox, QLineEdit, QMessageBox, QGroupBox, QFormLayout)
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
-from backend.implement_bgp import configure_bgp, configure_vpnv4, load_routers
+from backend.implement_bgp import configure_bgp, delete_bgp_config, load_routers
 
 class ImplementBGPPage(QWidget):
     def __init__(self, stacked_widget=None):
@@ -90,7 +90,7 @@ class ImplementBGPPage(QWidget):
         bgp_group.setLayout(bgp_form)
         main_layout.addWidget(bgp_group)
 
-        # VPNv4 Configuration Group
+        # VPNv4 Configuration Group (inputs kept, button removed)
         vpn_group = QGroupBox("VPNv4 Configuration (Optional)")
         vpn_form = QFormLayout()
         
@@ -102,18 +102,18 @@ class ImplementBGPPage(QWidget):
         vpn_group.setLayout(vpn_form)
         main_layout.addWidget(vpn_group)
 
-        # Buttons
+        # Buttons (replaced VPNv4 button with Delete BGP)
         button_layout = QHBoxLayout()
         self.submit_bgp = QPushButton("Apply BGP Config")
         self.submit_bgp.clicked.connect(self.submit_bgp_config)
-        self.submit_vpn = QPushButton("Apply VPNv4 Config")
-        self.submit_vpn.clicked.connect(self.submit_vpn_config)
+        self.delete_bgp = QPushButton("Delete BGP Config")
+        self.delete_bgp.clicked.connect(self.delete_bgp_config)
         back_button = QPushButton("Back")
         back_button.clicked.connect(self.go_back)
 
         button_layout.addWidget(back_button)
         button_layout.addWidget(self.submit_bgp)
-        button_layout.addWidget(self.submit_vpn)
+        button_layout.addWidget(self.delete_bgp)
         main_layout.addLayout(button_layout)
 
         self.setLayout(main_layout)
@@ -135,6 +135,7 @@ class ImplementBGPPage(QWidget):
             QMessageBox.warning(self, "Input Error", "Please select a router.")
             return
 
+        # Include VPNv4 fields in the configuration
         fields = {
             "Local ASN": self.local_asn_input.text(),
             "Neighbor IP": self.neighbor_ip_input.text(),
@@ -145,10 +146,11 @@ class ImplementBGPPage(QWidget):
         
         if not all(fields.values()):
             missing = [name for name, value in fields.items() if not value]
-            QMessageBox.warning(self, "Input Error", f"Missing fields: {', '.join(missing)}")
+            QMessageBox.warning(self, "Input Error", f"Missing required fields: {', '.join(missing)}")
             return
 
         try:
+            # Include VPNv4 parameters in the configuration call
             response = configure_bgp(
                 router=selected_router,
                 bgp_type=self.bgp_type.currentText(),
@@ -156,7 +158,9 @@ class ImplementBGPPage(QWidget):
                 neighbor_ip=self.neighbor_ip_input.text(),
                 neighbor_asn=self.neighbor_asn_input.text(),
                 prefix=self.network_prefix_input.text(),
-                mask=self.subnet_mask_input.text()
+                mask=self.subnet_mask_input.text(),
+                vpn_local_asn=self.vpn_local_asn.text(),
+                vpn_neighbor_ip=self.vpn_neighbor_ip.text()
             )
             
             if response["success"]:
@@ -167,32 +171,35 @@ class ImplementBGPPage(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Exception", f"Error: {str(e)}")
 
-    def submit_vpn_config(self):
+    def delete_bgp_config(self):
         selected_router = self.router_select.currentData()
+        local_asn = self.local_asn_input.text()
+
         if not selected_router:
             QMessageBox.warning(self, "Input Error", "Please select a router.")
             return
-
-        fields = {
-            "Local ASN": self.vpn_local_asn.text(),
-            "Neighbor IP": self.vpn_neighbor_ip.text()
-        }
-        
-        if not all(fields.values()):
-            QMessageBox.warning(self, "Input Error", "Both VPNv4 fields are required!")
+        if not local_asn:
+            QMessageBox.warning(self, "Input Error", "Local ASN is required for deletion.")
             return
 
         try:
-            response = configure_vpnv4(
-                router=selected_router,
-                local_asn=self.vpn_local_asn.text(),
-                neighbor_ip=self.vpn_neighbor_ip.text()
+            confirm = QMessageBox.question(
+                self,
+                "Confirm Deletion",
+                "Are you sure you want to delete the BGP configuration?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             
-            if response["success"]:
-                QMessageBox.information(self, "Success", "VPNv4 configuration applied successfully!")
-            else:
-                QMessageBox.critical(self, "Error", f"Failed: {response['error']}")
+            if confirm == QMessageBox.StandardButton.Yes:
+                response = delete_bgp_config(
+                    router=selected_router,
+                    local_asn=local_asn
+                )
+                
+                if response["success"]:
+                    QMessageBox.information(self, "Success", "BGP configuration deleted successfully!")
+                else:
+                    QMessageBox.critical(self, "Error", f"Failed: {response['error']}")
                 
         except Exception as e:
             QMessageBox.critical(self, "Exception", f"Error: {str(e)}")

@@ -14,7 +14,7 @@ class LoginWindow(QWidget):
         self.setup_styles()
 
     def setup_ui(self):
-        self.setWindowTitle("Network Manager - Secure Login")
+        self.setWindowTitle("Network Manager")
         self.setMinimumSize(800, 800)
         
         main_layout = QVBoxLayout()
@@ -25,7 +25,7 @@ class LoginWindow(QWidget):
         self.add_security_branding(main_layout)
         
         # Login form
-        form_group = QGroupBox("Secure Authentication")
+        form_group = QGroupBox("Login")
         form_layout = QVBoxLayout()
         
         self.username_input = self.create_input_field("Username")

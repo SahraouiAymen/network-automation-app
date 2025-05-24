@@ -31,7 +31,8 @@ def load_routers():
         print(f"MongoDB Error: {e}")
         return []
 
-def configure_bgp(router, bgp_type, local_asn, neighbor_ip, neighbor_asn, prefix, mask):
+def configure_bgp(router, bgp_type, local_asn, neighbor_ip, neighbor_asn, prefix, mask, 
+                 vpn_local_asn=None, vpn_neighbor_ip=None):
     response = {"success": False, "output": "", "error": ""}
     config = {
         "bgp_type": bgp_type,
@@ -39,7 +40,11 @@ def configure_bgp(router, bgp_type, local_asn, neighbor_ip, neighbor_asn, prefix
         "neighbor_ip": neighbor_ip,
         "neighbor_asn": neighbor_asn,
         "prefix": prefix,
-        "mask": mask
+        "mask": mask,
+        "vpn_config": {
+            "local_asn": vpn_local_asn,
+            "neighbor_ip": vpn_neighbor_ip
+        }
     }
     
     ssh = paramiko.SSHClient()
@@ -68,6 +73,15 @@ def configure_bgp(router, bgp_type, local_asn, neighbor_ip, neighbor_asn, prefix
             'exit-address-family'
         ]
 
+        # Add VPNv4 configuration if provided
+        if vpn_local_asn and vpn_neighbor_ip:
+            commands += [
+                'address-family vpnv4',
+                f'neighbor {vpn_neighbor_ip} activate',
+                f'neighbor {vpn_neighbor_ip} send-community extended',
+                'exit-address-family'
+            ]
+
         if 'iBGP' in bgp_type and local_asn == neighbor_asn:
             commands[3:3] = [
                 'bgp log-neighbor-changes',
@@ -94,6 +108,58 @@ def configure_bgp(router, bgp_type, local_asn, neighbor_ip, neighbor_asn, prefix
         error_msg = str(e)
         response['error'] = error_msg
         log_bgp_action("configure", router, config, "error", error_msg)
+    finally:
+        ssh.close()
+    
+    return response
+
+# Keep the existing delete_bgp_config function from previous answer
+def delete_bgp_config(router, local_asn):
+    response = {"success": False, "output": "", "error": ""}
+    config = {
+        "local_asn": local_asn,
+        "action": "delete"
+    }
+    
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    
+    try:
+        ssh.connect(router['ip'],
+                   username=router['username'],
+                   password=router['password'],
+                   timeout=10)
+        
+        chan = ssh.invoke_shell()
+        chan.settimeout(10)
+        
+        output = ""
+        while not output.endswith(('#', '>')):
+            output += chan.recv(1024).decode()
+
+        commands = [
+            'configure terminal',
+            f'no router bgp {local_asn}',
+            'end',
+            'write memory'
+        ]
+
+        for cmd in commands:
+            chan.send(cmd + '\n')
+            time.sleep(0.5)
+            output = chan.recv(65535).decode()
+            response['output'] += output
+            
+            if '% Invalid' in output:
+                raise Exception(f"Command failed: {cmd}\n{output}")
+
+        response['success'] = True
+        log_bgp_action("delete", router, config, "success")
+        
+    except Exception as e:
+        error_msg = str(e)
+        response['error'] = error_msg
+        log_bgp_action("delete", router, config, "error", error_msg)
     finally:
         ssh.close()
     

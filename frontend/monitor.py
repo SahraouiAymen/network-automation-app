@@ -285,7 +285,13 @@ class MonitorPage(QWidget):
                 widget.deleteLater()
 
     def show_router_stats(self, router_data):
-        stats_window = StatsWindow(router_data)
+        # Extract all required parameters from router_data
+        stats_window = StatsWindow(
+            router_name=router_data['name'],
+            host=router_data['ip'],
+            username=router_data['username'],
+            password=router_data['password']
+        )
         self.add_child_window(stats_window)
         stats_window.show()
 
