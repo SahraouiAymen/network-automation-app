@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
-from backend.isis import load_routers, generate_isis_commands, generate_isis_delete_commands, apply_configuration
+from backend.isis import load_routers, apply_isis_configuration, delete_isis_configuration
 
 class ISISConfig(QWidget):
     def __init__(self, stacked_widget=None):
@@ -137,26 +137,32 @@ class ISISConfig(QWidget):
 
     def apply_config(self):
         router_name = self.router_selector.currentText()
-        net = self.net_input.text()
-        area = self.area_input.text()
+        net = self.net_input.text().strip()
+        area = self.area_input.text().strip()
         level = self.level_combo.currentText()
 
-        if not all([router_name, net, area]):
-            QMessageBox.warning(self, "Error", "All fields are required!")
+        if not router_name:
+            QMessageBox.warning(self, "Error", "Please select a router!")
+            return
+        if not net or not area:
+            QMessageBox.warning(self, "Error", "NET and Area fields are required!")
             return
 
-        commands = generate_isis_commands(net, area, level)
-        if apply_configuration(router_name, commands):
+        result = apply_isis_configuration(router_name, net, area, level)
+        if result["status"] == "success":
             QMessageBox.information(self, "Success", "IS-IS configuration applied successfully!")
         else:
-            QMessageBox.critical(self, "Error", "Failed to apply configuration!")
+            QMessageBox.critical(self, "Error", f"Failed to apply configuration:\n{result['message']}")
 
     def delete_config(self):
         router_name = self.router_selector.currentText()
-        area = self.area_input.text()
+        area = self.area_input.text().strip()
 
-        if not router_name or not area:
-            QMessageBox.warning(self, "Error", "Router and Area fields are required for deletion!")
+        if not router_name:
+            QMessageBox.warning(self, "Error", "Please select a router!")
+            return
+        if not area:
+            QMessageBox.warning(self, "Error", "Area field is required for deletion!")
             return
 
         confirm = QMessageBox.question(
@@ -166,8 +172,8 @@ class ISISConfig(QWidget):
         )
         
         if confirm == QMessageBox.StandardButton.Yes:
-            commands = generate_isis_delete_commands(area)
-            if apply_configuration(router_name, commands):
+            result = delete_isis_configuration(router_name, area)
+            if result["status"] == "success":
                 QMessageBox.information(self, "Success", "IS-IS configuration removed successfully!")
             else:
-                QMessageBox.critical(self, "Error", "Failed to remove configuration!")
+                QMessageBox.critical(self, "Error", f"Failed to remove configuration:\n{result['message']}")

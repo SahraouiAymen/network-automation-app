@@ -10,7 +10,7 @@ class RouterMonitorError(Exception):
 
 class SSHRouterMonitor:
     def __init__(self, host: str, username: str, password: str):
-        self.host = host  # Accepts both IPs and hostnames
+        self.host = host 
         self.username = username
         self.password = password
         self.ssh = None

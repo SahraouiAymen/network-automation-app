@@ -124,7 +124,6 @@ def execute_ssh_commands(router, commands):
         raise  # Re-raise for upper layer handling
     finally:
         ssh.close()
-
 def send_vrf_configuration(router, vrf_name, rd_value, rt_value, interface=None):
     """Main VRF configuration function with full logging"""
     response = {"success": False, "output": "", "error": ""}
@@ -136,14 +135,11 @@ def send_vrf_configuration(router, vrf_name, rd_value, rt_value, interface=None)
     }
 
     try:
-        # Validation
         if not validate_vrf_name(vrf_name):
             raise ValueError("Invalid VRF name (max 32 chars, alphanumeric)")
         
         if not re.match(r"^\d+:\d+$", rd_value):
             raise ValueError("Invalid RD format (ASN:NN or IP:NN)")
-
-        # Build commands
         commands = [
             "configure terminal",
             f"ip vrf {vrf_name}",
@@ -152,14 +148,12 @@ def send_vrf_configuration(router, vrf_name, rd_value, rt_value, interface=None)
             f"route-target import {rt_value}",
             "exit"
         ]
-
         if interface and interface != "-- Optional Interface --":
             commands += [
                 f"interface {interface}",
                 f"ip vrf forwarding {vrf_name}",
                 "exit"
             ]
-
         commands.append("end")
         
         # Execute
@@ -186,7 +180,6 @@ def remove_vrf_configuration(router, vrf_name):
             "end",
             "write memory"
         ]
-        
         output = execute_ssh_commands(router, commands)
         response.update(success=True, output=output)
         log_vrf_action("delete", "success", router, config)

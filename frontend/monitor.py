@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, 
     QListWidget, QFrame, QGridLayout, QPushButton, QGroupBox, 
-    QMessageBox, QInputDialog,QLineEdit
+    QMessageBox, QInputDialog, QLineEdit, QStackedWidget
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
@@ -134,7 +134,6 @@ class MonitorPage(QWidget):
         self.child_windows = []
         self.admin_clicks = 0
         self.setup_ui()
-        self.setup_hidden_logs()
         self.setStyleSheet("background-color: #f5f6fa;")
         self.refresh_needed.connect(self.load_routers)
 
@@ -147,17 +146,29 @@ class MonitorPage(QWidget):
         nav_frame = self.create_navigation_panel()
         main_layout.addWidget(nav_frame)
 
-        # Main content area
-        content_layout = QVBoxLayout()
+        # Create stacked widget for main content area
+        self.stacked_right = QStackedWidget()
+        main_layout.addWidget(self.stacked_right, stretch=1)
+
+        # Create regular content page
+        self.content_page = QWidget()
+        content_layout = QVBoxLayout(self.content_page)
         content_layout.addWidget(self.create_header())
         content_layout.addWidget(self.create_router_grid())
-        
-        main_layout.addLayout(content_layout)
+        self.stacked_right.addWidget(self.content_page)
+
+        # Create logs page
+        self.setup_logs_page()
+
         self.setLayout(main_layout)
         self.load_routers()
 
-    def setup_hidden_logs(self):
-        """Initialize hidden logs container"""
+    def setup_logs_page(self):
+        """Initialize logs page with scroll area and back button"""
+        self.logs_page = QWidget()
+        layout = QVBoxLayout(self.logs_page)
+
+        # Scroll area for logs
         self.log_scroll = QScrollArea()
         self.log_scroll.setWidgetResizable(True)
         self.log_scroll.setStyleSheet("border: none; background: transparent;")
@@ -165,10 +176,25 @@ class MonitorPage(QWidget):
         self.log_container = QWidget()
         self.log_layout = QVBoxLayout()
         self.log_container.setLayout(self.log_layout)
-        
         self.log_scroll.setWidget(self.log_container)
-        self.log_scroll.hide()
-        self.layout().addWidget(self.log_scroll)
+
+        # Back button
+        back_btn = QPushButton("Back to Dashboard")
+        back_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #74b9ff;
+                color: white;
+                border-radius: 5px;
+                padding: 8px;
+                margin: 10px;
+            }
+            QPushButton:hover { background-color: #0984e3; }
+        """)
+        back_btn.clicked.connect(self.switch_to_content_page)
+
+        layout.addWidget(self.log_scroll)
+        layout.addWidget(back_btn)
+        self.stacked_right.addWidget(self.logs_page)
 
     def create_navigation_panel(self):
         frame = QFrame()
@@ -263,10 +289,14 @@ class MonitorPage(QWidget):
                 self.log_layout.addWidget(log_section)
             
             self.log_layout.addStretch()
-            self.log_scroll.show()
+            self.stacked_right.setCurrentWidget(self.logs_page)
             
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load logs: {str(e)}")
+
+    def switch_to_content_page(self):
+        """Switch back to main dashboard view"""
+        self.stacked_right.setCurrentWidget(self.content_page)
 
     def load_routers(self):
         self.clear_layout(self.grid_layout)
@@ -285,7 +315,6 @@ class MonitorPage(QWidget):
                 widget.deleteLater()
 
     def show_router_stats(self, router_data):
-        # Extract all required parameters from router_data
         stats_window = StatsWindow(
             router_name=router_data['name'],
             host=router_data['ip'],

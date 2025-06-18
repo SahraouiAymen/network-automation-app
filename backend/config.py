@@ -2,7 +2,6 @@ from pymongo import MongoClient
 import paramiko
 import re
 import datetime
-import socket
 
 def get_router_list():
     """Fetch validated routers from MongoDB"""

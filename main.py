@@ -9,7 +9,6 @@ class MainApplication(QMainWindow):
         self.setWindowTitle("Network Automation")
         self.setGeometry(100, 100, 1300, 700)
         
-        
         self.stacked_widget = QStackedWidget()
         self.setCentralWidget(self.stacked_widget)
         
@@ -28,9 +27,7 @@ class MainApplication(QMainWindow):
 
     def on_login_success(self):
         print("Login successful, switching to monitor page")
-        # Create and add monitor page
         self.monitor_page = MonitorPage(self.stacked_widget)
-        # Connect logout signal to handler
         self.monitor_page.logout_requested.connect(self.handle_logout)
         self.stacked_widget.addWidget(self.monitor_page)
         self.stacked_widget.setCurrentWidget(self.monitor_page)
