@@ -6,7 +6,7 @@ def get_db_connection():
     """Establish a secure connection to MongoDB"""
     try:
         client = MongoClient("mongodb://localhost:27017/", serverSelectionTimeoutMS=5000)
-        client.server_info()  # Test connection
+        client.server_info()
         return client["NetworkApp"]
     except ConnectionFailure as e:
         print(f"Database connection failed: {e}")

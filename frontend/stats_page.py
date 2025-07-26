@@ -15,7 +15,7 @@ class StatsWindow(QWidget):
     def __init__(self, router_name, host, username, password, parent=None):
         super().__init__(parent)
         self.router_name = router_name
-        self.host = host  # Now accepts hostnames
+        self.host = host  # accepts hostnames
         self.credentials = (username, password)
         
         self.setWindowTitle(f"{router_name} Statistics")
@@ -192,8 +192,7 @@ class StatsWindow(QWidget):
         if "DNS resolution" in message:
             guidance = (f"Hostname resolution failed for '{self.host}':\n"
                        "1. Verify the device name is correct\n"
-                       "2. Check DNS/hosts file configuration\n"
-                       "3. Try using the IP address instead")
+                       "2. Try using the IP address instead")
         elif "Connection failed" in message:
             guidance = ("Connection attempt failed:\n"
                        "1. Verify device is reachable\n"
